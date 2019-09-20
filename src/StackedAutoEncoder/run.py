@@ -64,6 +64,7 @@ def train_layers(layers_list=None, layer=None, epoch=None, validate=True):
                 print("Train Layer: {}, Epoch: {}/{}, Iter: {}/{}, Loss: {:.4f}".format(
                     layer, (epoch_index + 1), epoch, (batch_index + 1), len(train_loader), loss
                 ))
+
         if validate:
             pass
 
@@ -79,12 +80,17 @@ def train_whole(model=None, epoch=50, validate=True):
 
     train_loader, test_loader = get_mnist_loader(batch_size=batch_size, shuffle=shuffle)
     optimizer = optim.SGD(model.parameters(), lr=0.001)
-    criterion = BCELoss()
+    # criterion = BCELoss()
+    criterion = torch.nn.MSELoss()
+
+    # 生成/保存原始test图片 --取一个batch_size
+    test_data, _ = next(iter(test_loader))
+    torchvision.utils.save_image(test_data, './test_images/real_test_images.png')
 
     # train
     for epoch_index in range(epoch):
         sum_loss = 0.
-        for i, (train_data, _) in enumerate(train_loader):
+        for batch_index, (train_data, _) in enumerate(train_loader):
             if torch.cuda.is_available():
                 train_data = train_data.cuda()
             x = train_data.view(train_data.size(0), -1)
@@ -97,28 +103,25 @@ def train_whole(model=None, epoch=50, validate=True):
             loss.backward()
             optimizer.step()
 
-            if (i + 1) % 10 == 0:
+            if (batch_index + 1) % 10 == 0:
                 print("Train Whole, Epoch: {}/{}, Iter: {}/{}, Loss: {:.4f}".format(
-                    (epoch_index + 1), epoch, (i + 1), len(train_loader), loss
+                    (epoch_index + 1), epoch, (batch_index + 1), len(train_loader), loss
                 ))
+            if batch_index == len(train_loader) - 1:
+                torchvision.utils.save_image(out.view(100, 1, 28, 28), "./test_images/out_{}_{}.png".format(epoch_index, batch_index))
 
         # 每个epoch验证一次
         if validate:
-            sum_loss = 0.
-            for i, (test_data, _) in enumerate(test_loader):
-                if torch.cuda.is_available():
-                    test_data = test_data.cuda()
-                x = test_data.view(test_data.size(0), -1)
-                out = model(x)
-                loss = criterion(out, x)
-                sum_loss += loss
-
-                if (i + 1) % 10 == 0:
-                    print("Test Epoch: {}/{}, Iter: {}/{}, test Loss: {}".format(
-                        epoch_index + 1, epoch, (i + 1), len(test_loader), sum_loss
-                    ))
-                image_tensor = out.view(batch_size, 1, 28, 28)
-                torchvision.utils.save_image(image_tensor, './test_images/test_image_epoch{}.png'.format(epoch_index))
+            if torch.cuda.is_available():
+                test_data = test_data.cuda()
+            x = test_data.view(test_data.size(0), -1)
+            out = model(x)
+            loss = criterion(out, x)
+            print("Test Epoch: {}/{}, Iter: {}/{}, test Loss: {}".format(
+                epoch_index + 1, epoch, (epoch_index + 1), len(test_loader), loss
+            ))
+            image_tensor = out.view(batch_size, 1, 28, 28)
+            torchvision.utils.save_image(image_tensor, './test_images/test_image_epoch_{}.png'.format(epoch_index))
     print("<< end training whole model")
 
 
